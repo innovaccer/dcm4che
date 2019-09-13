@@ -39,6 +39,12 @@
 package org.dcm4che3.tool.hl7rcv;
 
 import org.apache.commons.cli.*;
+import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.common.Cluster;
+import org.apache.kafka.common.serialization.LongDeserializer;
+import org.apache.kafka.common.serialization.LongSerializer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.dcm4che3.hl7.*;
 import org.dcm4che3.io.SAXTransformer;
 import org.dcm4che3.net.Connection;
@@ -51,6 +57,8 @@ import org.dcm4che3.net.hl7.UnparsedHL7Message;
 import org.dcm4che3.tool.common.CLIUtils;
 import org.dcm4che3.util.StringUtils;
 
+import java.util.*;
+
 import javax.xml.transform.Templates;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -62,8 +70,7 @@ import java.io.*;
 import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
-import java.util.Date;
-import java.util.ResourceBundle;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -234,13 +241,33 @@ public class HL7Rcv {
 
     private UnparsedHL7Message onMessage(UnparsedHL7Message msg)
                 throws Exception {
+
             if (storageDir != null)
                 storeToFile(msg.data(), new File(
                             new File(storageDir, msg.msh().getMessageType()),
                                 msg.msh().getField(9, "_NULL_")));
+            sendToKafka(msg);
             return new UnparsedHL7Message(tpls == null
                 ? HL7Message.makeACK(msg.msh(), HL7Exception.AA, null).getBytes(null)
                 : xslt(msg));
+    }
+
+    private void sendToKafka(UnparsedHL7Message msg) {
+        System.out.print("Starting to send message to kafka");
+        Producer<Long, String> producer = ProducerCreator.createProducer();
+        String message = new String(msg.data());
+        long key = 1; // Key will be same for all the messages so that hash is same and they go in single partition
+        int partition = 0; // Topic will always have single partition to maintain ordering
+        ProducerRecord<Long, String> record = new ProducerRecord<>("", partition, key, message);
+        try {
+            RecordMetadata metadata = producer.send(record).get();
+            System.out.println("Record sent to partition " + metadata.partition()
+                    + " with offset " + metadata.offset() + " with data" + message);
+        }
+        catch (ExecutionException | InterruptedException e) {
+            System.out.println("Error in sending record");
+            System.out.println(e);
+        }
     }
 
     private void storeToFile(byte[] data, File f) throws IOException {
@@ -279,5 +306,16 @@ public class HL7Rcv {
 
     public Connection getConn() {
         return conn;
+    }
+}
+
+class ProducerCreator {
+    static Producer<Long, String> createProducer() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "");
+        props.put(ProducerConfig.CLIENT_ID_CONFIG, "");
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        return new KafkaProducer<>(props);
     }
 }

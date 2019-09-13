@@ -54,6 +54,12 @@
       <artifactId>dcm4che-net-hl7</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients -->
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>2.3.0</version>
+    </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-common</artifactId>

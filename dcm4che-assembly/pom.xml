@@ -517,5 +517,10 @@
       <type>dll</type>
       <classifier>windows-x86-64</classifier>
     </dependency>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>2.3.0</version>
+    </dependency>
   </dependencies>
 </project>

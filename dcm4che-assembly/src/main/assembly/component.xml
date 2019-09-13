@@ -193,6 +193,7 @@
         <include>com.sun.xml.messaging.saaj:saaj-impl</include>
         <include>org.glassfish.gmbal:gmbal</include>
         <include>org.jvnet.mimepull:mimepull</include>
+        <include>org.apache.kafka</include>
       </includes>
       <useProjectArtifact>false</useProjectArtifact>
     </dependencySet>
