@@ -57,6 +57,7 @@ import org.dcm4che3.net.hl7.UnparsedHL7Message;
 import org.dcm4che3.tool.common.CLIUtils;
 import org.dcm4che3.util.StringUtils;
 
+import java.awt.*;
 import java.util.*;
 
 import javax.xml.transform.Templates;
@@ -90,6 +91,8 @@ public class HL7Rcv {
     private final HL7DeviceExtension hl7Ext = new HL7DeviceExtension();
     private final HL7Application hl7App = new HL7Application("*");
     private final Connection conn = new Connection();
+    private static String kafkaHost = "";
+    private static String kafkaTopic = "";
     private String storageDir;
     private String charset;
     private Templates tpls;
@@ -186,6 +189,15 @@ public class HL7Rcv {
                 .desc(rb.getString("idle-timeout"))
                 .longOpt("idle-timeout")
                 .build());
+        opts.addOption(Option.builder("kafka")
+                .hasArg()
+                .argName("host:port")
+                .desc("Specify kafka host and port")
+                .build());
+        opts.addOption(Option.builder("topic")
+                .hasArg()
+                .desc("Kafka topic on which message needs to be sent")
+                .build());
     }
 
     public static void main(String[] args) {
@@ -221,6 +233,10 @@ public class HL7Rcv {
             main.setXSLT(new File(s).toURI().toURL());
             main.setXSLTParameters(cl.getOptionValues("xsl-param"));
         }
+        if (cl.hasOption("kafka")) {
+            kafkaHost = cl.getOptionValue("kafka");
+            kafkaTopic = cl.getOptionValue("topic");
+        }
         main.setCharacterSet(cl.getOptionValue("charset"));
         configureBindServer(main.conn, cl);
         CLIUtils.configure(main.conn, cl);
@@ -254,11 +270,11 @@ public class HL7Rcv {
 
     private void sendToKafka(UnparsedHL7Message msg) {
         System.out.print("Starting to send message to kafka");
-        Producer<Long, String> producer = ProducerCreator.createProducer();
+        Producer<Long, String> producer = ProducerCreator.createProducer(kafkaHost);
         String message = new String(msg.data());
         long key = 1; // Key will be same for all the messages so that hash is same and they go in single partition
         int partition = 0; // Topic will always have single partition to maintain ordering
-        ProducerRecord<Long, String> record = new ProducerRecord<>("", partition, key, message);
+        ProducerRecord<Long, String> record = new ProducerRecord<>(kafkaTopic, partition, key, message);
         try {
             RecordMetadata metadata = producer.send(record).get();
             System.out.println("Record sent to partition " + metadata.partition()
@@ -310,10 +326,10 @@ public class HL7Rcv {
 }
 
 class ProducerCreator {
-    static Producer<Long, String> createProducer() {
+    static Producer<Long, String> createProducer(String host) {
         Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "");
-        props.put(ProducerConfig.CLIENT_ID_CONFIG, "");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, host);
+        props.put(ProducerConfig.CLIENT_ID_CONFIG, "client_Hl7Rcv");
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         return new KafkaProducer<>(props);
